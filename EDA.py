@@ -95,6 +95,6 @@ for i in features_totales:
         r2 = pipe.score(X_test, y_test) #Lo que ha aprendido
         print(f'R2 del modelo: {r2} con ', nombres[i])
         mse = mean_squared_error(y_test, y_test_pred)**0.5
-        print(mse)
+        print("Root mean squared error: ", mse)
 
 

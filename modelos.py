@@ -9,6 +9,7 @@ from sklearn import metrics
 from sklearn import tree
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
 from lineartree import LinearTreeRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import Lasso
@@ -31,13 +32,15 @@ test=0
 for i in range (len(fecha)):
     if "2008" in fecha[i] or "2009" in fecha[i]:
         test+=1
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test/len(fecha), shuffle=False)
 k_best =SelectKBest(score_func=f_regression,k=12)  
-fit= k_best.fit(X,y)   
-selected_features = X.columns[k_best.get_support()]
-
+fit= k_best.fit(X_train,y_train)   
+selected_features = X_train.columns[k_best.get_support()]
+print(selected_features)
 
 #Creacion de regresores
 knn_regressor=KNeighborsRegressor()
+decision_tree_regressor = DecisionTreeRegressor()
 tree_regressor = LinearTreeRegressor(base_estimator=LinearRegression())
 linear_regressor = LinearRegression()
 lasso_regressor = Lasso() 
@@ -47,23 +50,22 @@ minmax = MinMaxScaler()
 standar = StandardScaler()
 robust = RobustScaler()
 scalers=[minmax,standar,robust]
-modelos=[knn_regressor, linear_regressor,lasso_regressor,svm_regressor,tree_regressor]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test/len(fecha), shuffle=False)
+modelos=[knn_regressor,decision_tree_regressor,tree_regressor,linear_regressor,lasso_regressor,svm_regressor]
+
 for modelo in range (len(modelos)):
-    for scaler in scalers:
-        pipe = Pipeline([
-            ('scaler',scaler), 
-            ('knn', modelos[modelo])]) 
-        start_time = time.time()
-        pipe.fit(X_train, y_train)
-        y_test_pred = pipe.predict(X_test)
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"Tiempo de ejecucion: {execution_time} segundos")
-        rmse = np.sqrt(metrics.mean_squared_error(y_test, y_test_pred))
-        print(f"RMSE of the model {modelos[modelo]}: {rmse}")
-        r2 = r2_score(y_test, y_test_pred)
-        print(r2)
+    pipe = Pipeline([
+        ('scaler',standar), 
+        ('knn', modelos[modelo])]) 
+    start_time = time.time()
+    pipe.fit(X_train, y_train)
+    y_test_pred = pipe.predict(X_test)
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Tiempo de ejecucion: {execution_time} segundos")
+    rmse = np.sqrt(metrics.mean_squared_error(y_test, y_test_pred))
+    print(f"RMSE of the model {modelos[modelo]}: {rmse}")
+    r2 = r2_score(y_test, y_test_pred)
+    print("R2 score: ",r2)
 
 scalers=[minmax,standar,robust]
 param_grid_knn = {
@@ -73,15 +75,20 @@ param_grid_knn = {
     'leaf_size': [20, 30, 40], 
     'p': [1, 2] 
 }
-
 param_grid_tree = {
-    'max_depth': [3, 5, 7],
-    'min_samples_split': [ 6, 10],
-    'min_samples_leaf': [3, 4]
+    'max_depth': [3, 5, 7, None],  
+    'min_samples_split': [2, 5, 10, 15],  
+    'min_samples_leaf': [1, 2, 4],  
+    'max_features': ['sqrt', 'log2', None] 
 }
-param_grid_linear = {}
+
+param_grid_linear = {
+    'fit_intercept': [True, False],  
+    'copy_X': [True, False] 
+}
+
 param_grid_lasso = {
-    'alpha': [0.1, 1.0, 10.0],
+    'alpha': [0.001,0.01,0.1, 1.0, 10.0],
     'max_iter': [10000,100000,1000000],
     'selection': ['cyclic', 'random']
 }
@@ -101,13 +108,13 @@ param_grid_svr = {
 #Transformamos los datos aqui
 X_train = standar.fit_transform(X_train)
 X_test = standar.transform(X_test)
-param_grid=[param_grid_knn,param_grid_linear,param_grid_lasso, param_grid_svr,param_grid_tree]
+param_grid=[param_grid_knn,param_grid_tree,{},param_grid_linear,param_grid_lasso, param_grid_svr]
 
 for modelo in range (len(modelos)):
     start_time = time.time()
     grid_search = GridSearchCV( modelos[modelo], param_grid[modelo], scoring='neg_root_mean_squared_error')
     grid_search.fit(X_train, y_train)
-    print("Mejores parámetros",grid_search.best_params_, "del modelo ",modelos[modelo])
+    print("Mejores parametros",grid_search.best_params_, "del modelo ",modelos[modelo])
     print("  Mejor error (RMSE):", -grid_search.best_score_)
     end_time = time.time()
     execution_time = end_time - start_time
